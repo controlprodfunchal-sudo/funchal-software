@@ -1,4 +1,6 @@
 {
   "systemVersion": "20261002-001",
-  "notas": "Primeira versão FUNCHAL."
+  "notas": "Primeira versão FUNCHAL.",
+  "exeVersion": "20261002-001",
+  "exeUrl": "https://controlprodfunchal-sudo.github.io/funchal-software/FUNCHAL-Setup.exe"
 }
