@@ -63,17 +63,19 @@ jobs:
             echo '--- versao.json ---'; cat versao.json
           fi
 
-          # --- sistema do escritorio ---
+          # --- sistema do escritorio: mantem exeVersion, exeUrl, cascaVersao... ---
           if [ -n "$SIS" ]; then
-            EXE=$(grep -o '"exeVersion": *"[^"]*"' versao-sistema.json 2>/dev/null | sed 's/.*"\(.*\)"/\1/' || true)
-            {
-              echo '{'
-              echo "  \"systemVersion\": \"$SIS\","
-              [ -n "$EXE" ] && echo "  \"exeVersion\": \"$EXE\","
-              echo "  \"publicadoEm\": \"$AGORA\","
-              echo "  \"notas\": \"$NOTAS\""
-              echo '}'
-            } > versao-sistema.json
+            SIS="$SIS" AGORA="$AGORA" NOTAS="$NOTAS" python3 - <<'PY'
+          import json, os
+          try:
+              v = json.load(open('versao-sistema.json', encoding='utf8'))
+          except Exception:
+              v = {}
+          v['systemVersion'] = os.environ['SIS']
+          v['publicadoEm'] = os.environ['AGORA']
+          v['notas'] = os.environ['NOTAS']
+          json.dump(v, open('versao-sistema.json', 'w', encoding='utf8'), indent=2, ensure_ascii=False)
+          PY
             echo '--- versao-sistema.json ---'; cat versao-sistema.json
           fi
 
