@@ -1,14 +1,14 @@
 name: Build do Software (FUNCHAL Desktop)
 
-# Builda o instalador .exe sempre que o sistema.html ou o projeto Electron
-# mudam. Roda num runner Windows de verdade -- o instalador sai pronto pra
+# Builda o instalador .exe quando o projeto Electron (a casca) muda. Mudancas
+# so de tela NAO geram instalador: o programa instalado baixa o sistema.html
+# novo sozinho ao abrir. Roda num runner Windows de verdade -- o instalador sai pronto pra
 # usar, sem precisar de nada instalado na sua máquina.
 
 on:
   push:
     branches: [ main, master ]
     paths:
-      - 'sistema.html'
       - 'funchal-desktop/**'
   workflow_dispatch:
 
@@ -68,6 +68,9 @@ jobs:
           import json
           v = json.load(open('versao-sistema.json'))
           v['exeVersion'] = "${{ steps.ver.outputs.sistema }}"
+          import re
+          m = re.search(r"CASCA_VERSAO\s*=\s*(\d+)", open('funchal-desktop/main.js', encoding='utf8').read())
+          if m: v['cascaVersao'] = int(m.group(1))
           v['exeUrl'] = "https://controlprodfunchal-sudo.github.io/funchal-software/FUNCHAL-Setup.exe"
           json.dump(v, open('versao-sistema.json','w'), indent=2, ensure_ascii=False)
           PY
