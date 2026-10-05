@@ -1,10 +1,17 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
+const os = require('os');
+const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
 
 const CANAL = 'https://controlprodfunchal-sudo.github.io/funchal-software/';
 const PROGRAMA_VERSAO = require('./package.json').version;
+/* Versão da CASCA (janela do programa). Só aumente este número quando mudar
+   este arquivo, o preload ou o instalador: o robô publica o número no
+   versao-sistema.json e quem está com uma casca mais velha troca o programa
+   sozinho, em segundo plano. Mudanças só de tela não mexem aqui. */
+const CASCA_VERSAO = 2;
 
 const pastaDados = () => app.getPath('userData');
 const arquivoSistema = () => path.join(pastaDados(), 'sistema.html');
@@ -67,6 +74,44 @@ function lerStatus() {
   catch (e) { return null; }
 }
 
+
+/** Se a casca publicada for mais nova que esta, baixa o instalador para a
+ *  pasta temporária e roda em modo silencioso; o instalador fecha este
+ *  programa, troca os arquivos e abre o novo. Qualquer falha é ignorada. */
+function baixarArquivo(url, destino, redirecoes = 5) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirecoes > 0) {
+        res.resume();
+        resolve(baixarArquivo(new URL(res.headers.location, url).toString(), destino, redirecoes - 1));
+        return;
+      }
+      if (res.statusCode !== 200) { res.resume(); reject(new Error('HTTP ' + res.statusCode)); return; }
+      const out = fs.createWriteStream(destino);
+      res.pipe(out);
+      out.on('finish', () => out.close(() => resolve()));
+      out.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+async function atualizarCasca() {
+  try {
+    const j = JSON.parse(await baixarTexto(CANAL + 'versao-sistema.json?t=' + Date.now()));
+    const nova = Number(j.cascaVersao || 0);
+    if (!nova || nova <= CASCA_VERSAO || !j.exeUrl) return false;
+    const destino = path.join(os.tmpdir(), 'FUNCHAL-Atualizacao.exe');
+    await baixarArquivo(j.exeUrl + '?t=' + Date.now(), destino);
+    if (fs.statSync(destino).size < 20 * 1024 * 1024) return false;   /* download incompleto */
+    spawn(destino, ['/S', '--updated'], { detached: true, stdio: 'ignore' }).unref();
+    app.quit();
+    return true;
+  } catch (e) {
+    console.warn('Sem atualização de casca agora:', e.message);
+    return false;
+  }
+}
+
 async function criarJanela() {
   await prepararSistema();
 
@@ -107,7 +152,8 @@ ipcMain.on('atualizar-sistema', async (event) => {
   } finally { atualizando = false; }
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  if (app.isPackaged && await atualizarCasca()) return;
   criarJanela();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) criarJanela();
